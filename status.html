@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EBC Asset Agent</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f1218;--bg2:#141820;--border:#1e2530;--text:#c8d4e8;--text2:#7a8ba0;--text3:#4a5568;--accent:#00d4aa;--red:#ef4444;--yellow:#f59e0b;--green:#10b981}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px}
+.logo{width:32px;height:32px;background:linear-gradient(135deg,#00d4aa,#0099ff);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#000;font-size:15px;flex-shrink:0}
+.header-text h1{font-size:14px;font-weight:700;color:#fff}
+.header-text p{font-size:11px;color:var(--text3)}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg2)}
+.tab{padding:10px 16px;font-size:12px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;transition:all .15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.content{flex:1;overflow-y:auto;padding:14px}
+.section{background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden}
+.section-hdr{padding:8px 12px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
+.row{display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;gap:8px}
+.row:last-child{border-bottom:none}
+.rk{color:var(--text3);flex-shrink:0;min-width:120px}
+.rv{color:var(--text);text-align:right;word-break:break-all}
+.rv.mono{font-family:monospace;font-size:11px}
+.status-bar{padding:10px 14px;display:flex;align-items:center;gap:8px;font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.syncing{background:var(--yellow);animation:pulse 1s infinite}
+.dot.success{background:var(--green)}
+.dot.error{background:var(--red)}
+.dot.idle{background:var(--text3)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
+.badge.ok{background:rgba(0,212,170,.15);color:var(--accent)}
+label{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:5px}
+input{width:100%;background:#0f1218;border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;outline:none;margin-bottom:12px;font-family:inherit}
+input:focus{border-color:var(--accent)}
+input::placeholder{color:var(--text3)}
+.btn{border:none;border-radius:6px;padding:9px 18px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit}
+.btn.primary{background:var(--accent);color:#000}
+.btn.primary:hover{background:#00f0c0}
+.btn.secondary{background:var(--bg2);border:1px solid var(--border);color:var(--text2)}
+.btn.secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;gap:8px;margin-top:4px}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.sync-btn-wrap{padding:0 0 12px}
+#msg{padding:8px 10px;border-radius:6px;font-size:12px;margin-bottom:10px;display:none}
+#msg.ok{background:rgba(0,212,170,.1);border:1px solid var(--accent);color:var(--accent)}
+#msg.err{background:rgba(239,68,68,.1);border:1px solid var(--red);color:var(--red)}
+.setup-notice{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--yellow);margin-bottom:10px}
+/* Dropdown row styles */
+.dd-wrap{}
+.dd-row{display:flex;gap:6px;align-items:center}
+.dd-select{flex:1;background:#0f1218;border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;outline:none;font-family:inherit;appearance:auto}
+.dd-select:focus{border-color:var(--accent)}
+.dd-select option{background:#1a2030;color:var(--text)}
+.btn-add{background:var(--accent);color:#000;border:none;border-radius:6px;width:30px;height:34px;font-size:16px;font-weight:700;cursor:pointer;flex-shrink:0;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.btn-add:hover{background:#00f0c0}
+.dd-add-row{display:flex;gap:6px;align-items:center;margin-top:6px}
+.dd-new-input{flex:1;background:#0f1218;border:1px solid var(--accent);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;font-family:inherit}
+.btn-confirm{background:var(--accent);color:#000;border:none;border-radius:6px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-cancel{background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;cursor:pointer}
+.dd-status{font-size:10px;margin-top:3px;min-height:14px;color:var(--text3)}
+.dd-status.ok{color:var(--accent)}
+.dd-status.err{color:var(--red)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo" id="logo-wrap">
+    <img id="logo-img" src="" alt="E" style="width:24px;height:24px;display:none;border-radius:4px">
+    <span id="logo-letter">E</span>
+  </div>
+  <div class="header-text">
+    <h1>EBC Asset Agent</h1>
+    <p id="hdr-sub">v4.1.7 · Loading...</p>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab" id="tab-btn-status" onclick="switchTab('status',this)">Status</div>
+  <div class="tab" id="tab-btn-setup"  onclick="switchTab('setup',this)">Setup</div>
+  <div class="tab" id="tab-btn-hardware" onclick="switchTab('hardware',this)">Hardware</div>
+</div>
+
+<div class="content">
+
+  <!-- STATUS TAB -->
+  <div id="tab-status" class="tab-content">
+    <div class="section" style="margin-bottom:10px">
+      <div class="status-bar">
+        <div class="dot idle" id="status-dot"></div>
+        <span id="status-text">Idle</span>
+        <span style="margin-left:auto;color:var(--text3);font-size:11px" id="last-sync-text"></span>
+      </div>
+    </div>
+    <div class="sync-btn-wrap">
+      <div class="actions">
+        <button class="btn primary" id="sync-btn" onclick="syncNow()">⟳ Sync Now</button>
+        <!-- Logs button hidden in v4.1.9 — accessible via tray → Open Log Folder -->
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-hdr">Connection</div>
+      <!-- FIX: Server row hidden. Show PC name and MS account instead -->
+      <div class="row"><span class="rk">PC Name</span><span class="rv mono" id="d-hostname">—</span></div>
+      <div class="row" id="row-ms-account"><span class="rk">Microsoft Account</span><span class="rv" id="d-ms-account">—</span></div>
+      <div class="row"><span class="rk">IP Address</span><span class="rv mono" id="d-ip">—</span></div>
+    </div>
+    <!-- FIX: Required software — only show rows for software that is present; hide if not installed -->
+    <div class="section" id="section-required-sw" style="display:none">
+      <div class="section-hdr">Required Software</div>
+      <div class="row" id="row-sap"    style="display:none"><span class="rk">SAP</span><span class="rv"><span class="badge ok">✓ Available</span></span></div>
+      <div class="row" id="row-cs"     style="display:none"><span class="rk">CrowdStrike</span><span class="rv"><span class="badge ok">✓ Available</span></span></div>
+      <div class="row" id="row-office" style="display:none"><span class="rk">Microsoft Office</span><span class="rv"><span class="badge ok">✓ Available</span></span></div>
+    </div>
+    <div class="section">
+      <div class="section-hdr">Organisation</div>
+      <div class="row"><span class="rk">Department</span><span class="rv" id="d-dept">—</span></div>
+      <div class="row"><span class="rk">Location</span><span class="rv" id="d-loc">—</span></div>
+      <div class="row"><span class="rk">Contact Number</span><span class="rv mono" id="d-contact">—</span></div>
+      <div class="row"><span class="rk">Device Type</span><span class="rv" id="d-device-type">—</span></div>
+      <div class="row"><span class="rk">Ext. / Intercom</span><span class="rv mono" id="d-ext-number">—</span></div>
+    </div>
+  </div>
+
+  <!-- SETUP TAB -->
+  <div id="tab-setup" class="tab-content">
+    <div id="msg"></div>
+    <div class="setup-notice" id="setup-notice" style="display:none">
+      ⚠ Please fill in your organisation details below and click Save &amp; Sync to register this device.
+    </div>
+    <div class="section">
+      <div class="section-hdr">Organisation Details</div>
+      <div style="padding:12px">
+
+        <!-- DEPARTMENT DROPDOWN -->
+        <label>Department</label>
+        <div class="dd-wrap" style="margin-bottom:12px">
+          <div class="dd-row">
+            <select id="s-dept" class="dd-select" disabled>
+              <option value="">— Loading… —</option>
+            </select>
+            <button class="btn-add" id="btn-add-dept" title="Add new department" onclick="addNew('dept')" disabled>＋</button>
+          </div>
+          <div id="dd-dept-status" class="dd-status"></div>
+          <div class="dd-add-row" id="add-dept-row" style="display:none">
+            <input id="new-dept-input" class="dd-new-input" placeholder="New department name…" maxlength="80">
+            <button class="btn-confirm" id="btn-confirm-dept" onclick="confirmAdd('dept')">Save</button>
+            <button class="btn-cancel"  onclick="cancelAdd('dept')">✕</button>
+          </div>
+        </div>
+
+        <!-- LOCATION DROPDOWN -->
+        <label>Location / Office</label>
+        <div class="dd-wrap" style="margin-bottom:12px">
+          <div class="dd-row">
+            <select id="s-loc" class="dd-select" disabled>
+              <option value="">— Loading… —</option>
+            </select>
+            <button class="btn-add" id="btn-add-loc" title="Add new location" onclick="addNew('loc')" disabled>＋</button>
+          </div>
+          <div id="dd-loc-status" class="dd-status"></div>
+          <div class="dd-add-row" id="add-loc-row" style="display:none">
+            <input id="new-loc-input" class="dd-new-input" placeholder="New location name…" maxlength="80">
+            <button class="btn-confirm" id="btn-confirm-loc" onclick="confirmAdd('loc')">Save</button>
+            <button class="btn-cancel"  onclick="cancelAdd('loc')">✕</button>
+          </div>
+        </div>
+
+        <label>Company Contact Number</label>
+        <input id="s-contact" placeholder="e.g. 0712345678" type="tel" maxlength="10" pattern="07[0-9]{8}">
+
+        <!-- FIX v4.1.9: Device Type dropdown -->
+        <label>Device Type</label>
+        <div style="margin-bottom:12px">
+          <select id="s-device-type" class="dd-select" style="width:100%">
+            <option value="">— Select Device Type —</option>
+            <option value="Desktop">Desktop</option>
+            <option value="Laptop">Laptop</option>
+            <option value="Server">Server</option>
+          </select>
+        </div>
+
+        <!-- FIX v4.1.9: Ext. / Intercom Number -->
+        <label>Ext. / Intercom Number</label>
+        <input id="s-ext-number" placeholder="e.g. 101" type="text" maxlength="20">
+      </div>
+    </div>
+    <div class="actions" style="padding-top:4px">
+      <button class="btn primary" id="btn-save" onclick="saveConfig()">💾 Save &amp; Sync</button>
+    </div>
+  </div>
+
+  <!-- HARDWARE TAB -->
+  <div id="tab-hardware" class="tab-content">
+    <div class="section">
+      <div class="section-hdr">Machine</div>
+      <div class="row"><span class="rk">Model</span><span class="rv" id="d-model">—</span></div>
+      <div class="row"><span class="rk">Manufacturer</span><span class="rv" id="d-mfr">—</span></div>
+      <div class="row"><span class="rk">Serial Number</span><span class="rv mono" id="d-serial">—</span></div>
+      <div class="row"><span class="rk">CPU</span><span class="rv" id="d-cpu">—</span></div>
+      <div class="row"><span class="rk">RAM</span><span class="rv" id="d-ram">—</span></div>
+    </div>
+    <div class="section">
+      <div class="section-hdr">Operating System</div>
+      <div class="row"><span class="rk">Windows</span><span class="rv" id="d-win">—</span></div>
+      <div class="row"><span class="rk">Architecture</span><span class="rv" id="d-arch">—</span></div>
+    </div>
+    <div class="section">
+      <div class="section-hdr">User Identity</div>
+      <div class="row"><span class="rk">Local Username</span><span class="rv mono" id="d-local-user">—</span></div>
+      <div class="row"><span class="rk">MS Account</span><span class="rv" id="d-ms">—</span></div>
+      <div class="row"><span class="rk">AD Username</span><span class="rv mono" id="d-ad">—</span></div>
+      <div class="row"><span class="rk">Admin on PC</span><span class="rv" id="d-admin">—</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const { ipcRenderer } = require('electron');
+const path = require('path');
+
+// ── Load header icon from resources/assets/icon.png ──────────────────────
+(function loadHeaderIcon() {
+  try {
+    const { app } = require('@electron/remote') || {};
+  } catch (_) {}
+  try {
+    // Works because nodeIntegration:true — we can use __dirname relative path
+    // When packaged: process.resourcesPath/assets/icon.png (extraResources)
+    // When dev:      __dirname/assets/icon.png
+    // Try to load icon.png from resources/assets/ (packaged) or assets/ (dev)
+    // Try multiple paths — first one that loads wins
+    const imgEl    = document.getElementById('logo-img');
+    const letterEl = document.getElementById('logo-letter');
+    if (imgEl) {
+      const tryPaths = [];
+      try {
+        const rp = window.process && window.process.resourcesPath;
+        if (rp) {
+          tryPaths.push(require('path').join(rp, 'assets', 'icon.png'));
+        }
+        tryPaths.push(require('path').join(__dirname, 'assets', 'icon.png'));
+        // Also try one level up (status.html is in resources/, assets/ is in resources/assets/)
+        tryPaths.push(require('path').join(__dirname, '..', 'assets', 'icon.png'));
+      } catch (_) {}
+
+      let idx = 0;
+      function tryNextPath() {
+        if (idx >= tryPaths.length) {
+          // All paths failed — show letter fallback
+          imgEl.style.display = 'none';
+          if (letterEl) letterEl.style.display = '';
+          return;
+        }
+        imgEl.src = tryPaths[idx++];
+        imgEl.onload = () => {
+          imgEl.style.display = 'block';
+          if (letterEl) letterEl.style.display = 'none';
+        };
+        imgEl.onerror = tryNextPath;
+      }
+      tryNextPath();
+    }
+  } catch (e) {}
+})();
+
+let _setupDone = false;
+let _statusData = null;
+let _initialized = false;
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  el.classList.add('active');
+}
+
+function sw(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val || '—';
+}
+
+// FIX: Required software — only show the row if the software IS installed, hide otherwise
+function updateSoftwareRows(hasSap, hasCs, hasOffice) {
+  const rowSap    = document.getElementById('row-sap');
+  const rowCs     = document.getElementById('row-cs');
+  const rowOffice = document.getElementById('row-office');
+  const section   = document.getElementById('section-required-sw');
+
+  if (rowSap)    rowSap.style.display    = hasSap    ? '' : 'none';
+  if (rowCs)     rowCs.style.display     = hasCs     ? '' : 'none';
+  if (rowOffice) rowOffice.style.display = hasOffice ? '' : 'none';
+
+  // Only show section if at least one is installed
+  if (section) section.style.display = (hasSap || hasCs || hasOffice) ? '' : 'none';
+}
+
+// ── Dropdown helpers ─────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// DEPARTMENT / LOCATION DROPDOWNS
+// ══════════════════════════════════════════════════════════════
+let _departments = [];
+let _locations   = [];
+
+// ── setDdStatus: show message under a dropdown ────────────────
+function setDdStatus(type, msg, cls) {
+  const el = document.getElementById(`dd-${type}-status`);
+  if (!el) return;
+  el.textContent  = msg || '';
+  el.className    = 'dd-status' + (cls ? ' ' + cls : '');
+}
+
+// ── enableDd: enable/disable a dropdown and its + button ──────
+function enableDd(type, on) {
+  const sel = document.getElementById(type === 'dept' ? 's-dept' : 's-loc');
+  const btn = document.getElementById(`btn-add-${type}`);
+  if (sel) sel.disabled = !on;
+  if (btn) btn.disabled = !on;
+}
+
+// ── populateSelect: fill a <select> from items array ─────────
+// items = [{ id, name }, …]   currentValue = string to pre-select
+function populateSelect(selectId, items, currentValue) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const prev = sel.value || currentValue || '';
+  sel.innerHTML = '';
+
+  // Placeholder option
+  const ph = document.createElement('option');
+  ph.value       = '';
+  ph.textContent = '— Select —';
+  sel.appendChild(ph);
+
+  items.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value       = item.name;
+    opt.textContent = item.name;
+    sel.appendChild(opt);
+  });
+
+  // Restore previous selection; if not in list but non-empty, add it
+  if (prev) {
+    const exists = items.find(i => i.name === prev);
+    if (!exists) {
+      const opt = document.createElement('option');
+      opt.value       = prev;
+      opt.textContent = prev;
+      sel.appendChild(opt);
+    }
+    sel.value = prev;
+    // If browser didn't honour it (edge case), force it
+    if (sel.value !== prev) {
+      for (let i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === prev) { sel.selectedIndex = i; break; }
+      }
+    }
+  }
+}
+
+// ── loadDropdowns: fetch both lists from server ───────────────
+async function loadDropdowns(currentDept, currentLoc) {
+  // Show loading state
+  setDdStatus('dept', '⟳ Loading departments…');
+  setDdStatus('loc',  '⟳ Loading locations…');
+  enableDd('dept', false);
+  enableDd('loc',  false);
+
+  // Fetch departments
+  try {
+    const depts = await ipcRenderer.invoke('get-departments');
+    if (Array.isArray(depts) && depts.length > 0) {
+      _departments = depts;
+      populateSelect('s-dept', _departments, currentDept);
+      setDdStatus('dept', `${depts.length} department${depts.length !== 1 ? 's' : ''} loaded`, 'ok');
+    } else if (Array.isArray(depts) && depts.length === 0) {
+      _departments = [];
+      populateSelect('s-dept', [], currentDept);
+      setDdStatus('dept', 'No departments yet — click ＋ to add one');
+    } else {
+      throw new Error('Empty response');
+    }
+  } catch (e) {
+    _departments = [];
+    populateSelect('s-dept', [], currentDept);
+    setDdStatus('dept', '⚠ Could not load — check server connection', 'err');
+  }
+  enableDd('dept', true);
+
+  // Fetch locations
+  try {
+    const locs = await ipcRenderer.invoke('get-locations');
+    if (Array.isArray(locs) && locs.length > 0) {
+      _locations = locs;
+      populateSelect('s-loc', _locations, currentLoc);
+      setDdStatus('loc', `${locs.length} location${locs.length !== 1 ? 's' : ''} loaded`, 'ok');
+    } else if (Array.isArray(locs) && locs.length === 0) {
+      _locations = [];
+      populateSelect('s-loc', [], currentLoc);
+      setDdStatus('loc', 'No locations yet — click ＋ to add one');
+    } else {
+      throw new Error('Empty response');
+    }
+  } catch (e) {
+    _locations = [];
+    populateSelect('s-loc', [], currentLoc);
+    setDdStatus('loc', '⚠ Could not load — check server connection', 'err');
+  }
+  enableDd('loc', true);
+
+  // Clear status messages after 4 seconds
+  setTimeout(() => {
+    setDdStatus('dept', '');
+    setDdStatus('loc',  '');
+  }, 4000);
+}
+
+// ── addNew: show the inline add row ──────────────────────────
+function addNew(type) {
+  document.getElementById(`add-${type}-row`).style.display = 'flex';
+  document.getElementById(`btn-add-${type}`).style.display = 'none';
+  const inp = document.getElementById(`new-${type}-input`);
+  inp.value    = '';
+  inp.disabled = false;
+  inp.focus();
+  inp.onkeydown = (e) => {
+    if (e.key === 'Enter')  confirmAdd(type);
+    if (e.key === 'Escape') cancelAdd(type);
+  };
+  setDdStatus(type, '');
+}
+
+// ── cancelAdd: hide the inline add row ───────────────────────
+function cancelAdd(type) {
+  document.getElementById(`add-${type}-row`).style.display = 'none';
+  document.getElementById(`btn-add-${type}`).style.display  = '';
+  setDdStatus(type, '');
+}
+
+// ── confirmAdd: save to DB then auto-select in dropdown ───────
+async function confirmAdd(type) {
+  const inp  = document.getElementById(`new-${type}-input`);
+  const name = (inp.value || '').trim();
+  if (!name) { inp.focus(); return; }
+
+  // Check duplicate locally before hitting server
+  const list = type === 'dept' ? _departments : _locations;
+  if (list.find(i => i.name.toLowerCase() === name.toLowerCase())) {
+    // Already exists — just select it
+    populateSelect(type === 'dept' ? 's-dept' : 's-loc', list, name);
+    cancelAdd(type);
+    setDdStatus(type, `"${name}" already exists — selected`, 'ok');
+    setTimeout(() => setDdStatus(type, ''), 3000);
+    return;
+  }
+
+  // Disable while saving
+  inp.disabled = true;
+  const confirmBtn = document.getElementById(`btn-confirm-${type}`);
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '…'; }
+  setDdStatus(type, '⟳ Saving…');
+
+  const ipcCall = type === 'dept' ? 'add-department' : 'add-location';
+  let result    = null;
+  try {
+    result = await ipcRenderer.invoke(ipcCall, name);
+  } catch (e) {
+    result = null;
+  }
+
+  inp.disabled = false;
+  if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Save'; }
+
+  if (result && result.name) {
+    // ✅ Saved to DB — add to local list, re-populate, auto-select
+    const savedName = result.name;
+    if (type === 'dept') {
+      if (!_departments.find(d => d.name.toLowerCase() === savedName.toLowerCase())) {
+        _departments.push({ id: result.id, name: savedName });
+        _departments.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      populateSelect('s-dept', _departments, savedName);
+      setDdStatus('dept', `✓ "${savedName}" added and selected`, 'ok');
+    } else {
+      if (!_locations.find(l => l.name.toLowerCase() === savedName.toLowerCase())) {
+        _locations.push({ id: result.id, name: savedName });
+        _locations.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      populateSelect('s-loc', _locations, savedName);
+      setDdStatus('loc', `✓ "${savedName}" added and selected`, 'ok');
+    }
+    cancelAdd(type);
+    setTimeout(() => setDdStatus(type, ''), 3500);
+  } else {
+    // ❌ Server unreachable — add to local list only, still auto-select
+    const fake = { id: null, name };
+    if (type === 'dept') {
+      if (!_departments.find(d => d.name.toLowerCase() === name.toLowerCase())) {
+        _departments.push(fake);
+        _departments.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      populateSelect('s-dept', _departments, name);
+    } else {
+      if (!_locations.find(l => l.name.toLowerCase() === name.toLowerCase())) {
+        _locations.push(fake);
+        _locations.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      populateSelect('s-loc', _locations, name);
+    }
+    cancelAdd(type);
+    setDdStatus(type, `⚠ Saved locally only — server unreachable`, 'err');
+    setTimeout(() => setDdStatus(type, ''), 4000);
+  }
+}
+
+// ── FIX: Load config and decide which tab to open ─────────────
+ipcRenderer.invoke('get-config').then(cfg => {
+  if (!cfg) return;
+  _setupDone = cfg.setup_done || false;
+
+  // Load dropdowns first, then set saved values
+  loadDropdowns(cfg.department || '', cfg.location || '').then(() => {
+    // contact number still uses input
+    document.getElementById('s-contact').value     = cfg.contact_number || '';
+    document.getElementById('s-device-type').value = cfg.device_type    || '';
+    document.getElementById('s-ext-number').value  = cfg.ext_number     || '';
+
+    const isEmpty = !cfg.department && !cfg.location;
+    if (!cfg.setup_done || isEmpty) {
+      const setupNotice = document.getElementById('setup-notice');
+      if (setupNotice) setupNotice.style.display = '';
+      switchTab('setup', document.getElementById('tab-btn-setup'));
+    } else {
+      switchTab('status', document.getElementById('tab-btn-status'));
+    }
+    _initialized = true;
+  });
+}).catch(() => {
+  loadDropdowns('', '');
+  switchTab('setup', document.getElementById('tab-btn-setup'));
+  _initialized = true;
+});
+
+// FIX: Auto-sync — poll for status updates every 3 seconds regardless of whether window was visible
+// This ensures the UI always stays up to date after a sync completes
+function startStatusPolling() {
+  setInterval(() => {
+    try {
+      ipcRenderer.invoke('get-status').then(s => {
+        if (s) applyStatusUpdate(s);
+      }).catch(() => {});
+    } catch {}
+  }, 3000);
+}
+
+ipcRenderer.on('status-update', (ev, s) => {
+  applyStatusUpdate(s);
+});
+
+function applyStatusUpdate(s) {
+  _statusData = s;
+
+  document.getElementById('hdr-sub').textContent = `v${s.version || '4.1.9'} · ${s.hostname || ''}`;
+
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  dot.className  = 'dot ' + (s.status || 'idle');
+  const labels   = { idle:'Idle', syncing:'Syncing...', success:'Last sync successful', error:'Last sync failed' };
+  text.textContent = labels[s.status] || 'Idle';
+
+  const syncEl = document.getElementById('last-sync-text');
+  if (syncEl) syncEl.textContent = s.lastSync ? `Last: ${s.lastSync}` : '';
+
+  const syncBtn = document.getElementById('sync-btn');
+  if (syncBtn) syncBtn.disabled = s.isSyncing;
+
+  // FIX: Show PC name and MS account in Connection section (Server hidden)
+  sw('d-hostname', s.hostname || '—');
+  const msAccountEl = document.getElementById('d-ms-account');
+  if (msAccountEl) {
+    const account = s.hw_ms_account || s.hw_local_user || '—';
+    msAccountEl.textContent = account;
+  }
+  sw('d-ip',      s.hw_ip);
+  sw('d-dept',    s.department    || '—');
+  sw('d-loc',     s.location      || '—');
+  sw('d-contact',     s.contact_number || '—');
+  sw('d-device-type', s.device_type     || '—');
+  sw('d-ext-number',  s.ext_number      || '—');
+
+  // FIX: Required software — only show if available
+  updateSoftwareRows(s.has_sap, s.has_crowdstrike, s.has_ms_office);
+
+  // Hardware tab
+  sw('d-model',      s.hw_model);
+  sw('d-mfr',        s.hw_manufacturer);
+  sw('d-serial',     s.hw_serial);
+  sw('d-cpu',        s.hw_cpu);
+  sw('d-ram',        s.hw_ram);
+  sw('d-win',        s.hw_windows);
+  sw('d-arch',       s.hw_arch || '—');
+  sw('d-local-user', s.hw_local_user);
+  sw('d-ms',         s.hw_ms_account || '—');
+  sw('d-ad',         s.hw_ad_user    || '—');
+  sw('d-admin',      s.hw_admin_user || '—');
+
+  // Hide setup notice once setup is done
+  if (s.setup_done) {
+    const n = document.getElementById('setup-notice');
+    if (n) n.style.display = 'none';
+  }
+}
+
+function syncNow() {
+  ipcRenderer.send('sync-now');
+}
+function openLog() {
+  ipcRenderer.send('open-log');
+}
+
+function saveConfig() {
+  const dept       = (document.getElementById('s-dept').value        || '').trim();
+  const loc        = (document.getElementById('s-loc').value         || '').trim();
+  const contact    = (document.getElementById('s-contact').value     || '').trim();
+  const deviceType = (document.getElementById('s-device-type').value || '').trim();
+  const extNumber  = (document.getElementById('s-ext-number').value  || '').trim();
+
+  // VALIDATION: contact number must be exactly 10 digits and start with 07
+  if (contact !== '') {
+    if (!/^07\d{8}$/.test(contact)) {
+      const msg = document.getElementById('msg');
+      msg.textContent = 'Contact number must be 10 digits and start with 07 (e.g. 0712345678)';
+      msg.className = 'err'; msg.style.display = 'block';
+      document.getElementById('s-contact').style.borderColor = 'var(--red)';
+      setTimeout(() => { msg.style.display = 'none'; document.getElementById('s-contact').style.borderColor = ''; }, 4000);
+      return;
+    }
+  }
+  document.getElementById('s-contact').style.borderColor = '';
+
+  ipcRenderer.send('save-config', {
+    department:     dept,
+    location:       loc,
+    contact_number: contact,
+    device_type:    deviceType,
+    ext_number:     extNumber,
+  });
+}
+
+ipcRenderer.on('config-saved', (ev, r) => {
+  const msg = document.getElementById('msg');
+  if (r.ok) {
+    msg.textContent = '✓ Configuration saved. Syncing now...';
+    msg.className = 'ok'; msg.style.display = 'block';
+    const notice = document.getElementById('setup-notice');
+    if (notice) notice.style.display = 'none';
+    setTimeout(() => {
+      msg.style.display = 'none';
+      switchTab('status', document.getElementById('tab-btn-status'));
+    }, 2500);
+  } else {
+    msg.textContent = '✗ Save failed. Check logs.';
+    msg.className = 'err'; msg.style.display = 'block';
+  }
+});
+
+// FIX: Start polling once DOM is ready, and also fetch status immediately
+window.addEventListener('DOMContentLoaded', () => {
+  startStatusPolling();
+  // Fetch current status immediately on load so UI populates without waiting 3s
+  try {
+    ipcRenderer.invoke('get-status').then(s => {
+      if (s) applyStatusUpdate(s);
+    }).catch(() => {});
+  } catch (_) {}
+});
+</script>
+</body>
+</html>
