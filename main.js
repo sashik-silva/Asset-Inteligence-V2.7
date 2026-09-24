@@ -921,7 +921,7 @@ async function runCollection(triggered = 'auto') {
     lastHardware = data;
     updateTrayMenu();
 
-    logger.info(`Sending FULL OVERWRITE → ${SERVER_URL}/api/asset | serial=${data.serial_number}`);
+    logger.info(`Sending payload → ${SERVER_URL}/api/asset | serial=${data.serial_number}`);
     const result = await sendToServer(data);
 
     if (myGeneration !== syncGeneration) {
@@ -929,9 +929,46 @@ async function runCollection(triggered = 'auto') {
       return;
     }
 
+    // If server response returns contact_number or asset info, synchronize local config with it
+    const serverContact = result?.contact_number ?? result?.asset?.contact_number;
+    const serverDept    = result?.department     ?? result?.asset?.department;
+    const serverLoc     = result?.location       ?? result?.asset?.location;
+    const serverExt     = result?.ext_number     ?? result?.asset?.ext_number;
+    const serverDevType = result?.device_type    ?? result?.asset?.device_type;
+
+    let serverConfigUpdated = false;
+    if (serverContact && String(serverContact).trim() !== agentConfig.contact_number) {
+      agentConfig.contact_number = String(serverContact).trim();
+      serverConfigUpdated = true;
+    }
+    if (serverDept && String(serverDept).trim() !== agentConfig.department) {
+      agentConfig.department = String(serverDept).trim();
+      serverConfigUpdated = true;
+    }
+    if (serverLoc && String(serverLoc).trim() !== agentConfig.location) {
+      agentConfig.location = String(serverLoc).trim();
+      serverConfigUpdated = true;
+    }
+    if (serverExt && String(serverExt).trim() !== agentConfig.ext_number) {
+      agentConfig.ext_number = String(serverExt).trim();
+      serverConfigUpdated = true;
+    }
+    if (serverDevType && String(serverDevType).trim() !== agentConfig.device_type) {
+      agentConfig.device_type = String(serverDevType).trim();
+      serverConfigUpdated = true;
+    }
+
+    if (serverConfigUpdated) {
+      agentConfig.setup_done = true;
+      saveConfig(agentConfig);
+      pushStatusToWindow();
+      updateTrayMenu();
+      logger.info(`Config synchronized from server: contact="${agentConfig.contact_number}" dept="${agentConfig.department}" loc="${agentConfig.location}"`);
+    }
+
     lastSync   = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Colombo' });
     lastStatus = 'success';
-    logger.info(`--- SUCCESS [${triggered}] FULL OVERWRITE | id=${result?.asset_id} | serial=${data.serial_number} | apps=${data.installed_apps?.length} | wu=${data.windows_updates?.length} | exe=${data.downloads_exe_count} ---`);
+    logger.info(`--- SUCCESS [${triggered}] | id=${result?.asset_id} | serial=${data.serial_number} | contact=${agentConfig.contact_number} | apps=${data.installed_apps?.length} | wu=${data.windows_updates?.length} ---`);
     logger.info(`--- SAP:${data.has_sap} | CrowdStrike:${data.has_crowdstrike} | MSOffice(fullPkg):${data.has_ms_office} ---`);
     crashLog(`Sync OK (FULL OVERWRITE): ${data.hostname} | ${data.serial_number}`);
 
@@ -1056,29 +1093,59 @@ async function pollRemoteCommands() {
     for (const cmd of cmds) {
       logger.info(`Remote cmd: ${cmd.command} (id=${cmd.id})`);
 
-      if (cmd.command === 'sync') {
+      // ── Ingest Contact & Org updates from dashboard ─────────────────────────
+      // If the dashboard sent updated contact details (in a config command, sync command, or payload)
+      const newContact = cmd.contact_number ?? cmd.payload?.contact_number ?? cmd.data?.contact_number ?? cmd.params?.contact_number ?? cmd.config?.contact_number;
+      const newDept    = cmd.department     ?? cmd.payload?.department     ?? cmd.data?.department     ?? cmd.params?.department     ?? cmd.config?.department;
+      const newLoc     = cmd.location       ?? cmd.payload?.location       ?? cmd.data?.location       ?? cmd.params?.location       ?? cmd.config?.location;
+      const newExt     = cmd.ext_number     ?? cmd.payload?.ext_number     ?? cmd.data?.ext_number     ?? cmd.params?.ext_number     ?? cmd.config?.ext_number;
+      const newDevType = cmd.device_type    ?? cmd.payload?.device_type    ?? cmd.data?.device_type    ?? cmd.params?.device_type    ?? cmd.config?.device_type;
+
+      let configChanged = false;
+      if (newContact !== undefined && newContact !== null && String(newContact).trim() !== agentConfig.contact_number) {
+        agentConfig.contact_number = String(newContact).trim();
+        configChanged = true;
+      }
+      if (newDept !== undefined && newDept !== null && String(newDept).trim() !== agentConfig.department) {
+        agentConfig.department = String(newDept).trim();
+        configChanged = true;
+      }
+      if (newLoc !== undefined && newLoc !== null && String(newLoc).trim() !== agentConfig.location) {
+        agentConfig.location = String(newLoc).trim();
+        configChanged = true;
+      }
+      if (newExt !== undefined && newExt !== null && String(newExt).trim() !== agentConfig.ext_number) {
+        agentConfig.ext_number = String(newExt).trim();
+        configChanged = true;
+      }
+      if (newDevType !== undefined && newDevType !== null && String(newDevType).trim() !== agentConfig.device_type) {
+        agentConfig.device_type = String(newDevType).trim();
+        configChanged = true;
+      }
+
+      if (configChanged) {
+        agentConfig.setup_done = true;
+        saveConfig(agentConfig);
+        pushStatusToWindow();
+        updateTrayMenu();
+        logger.info(`Dashboard contact/config update applied: contact="${agentConfig.contact_number}" dept="${agentConfig.department}" loc="${agentConfig.location}" ext="${agentConfig.ext_number}" devType="${agentConfig.device_type}"`);
+      }
+
+      // ── Command Routing ───────────────────────────────────────────────────
+      if (['update_contact', 'set_contact', 'contact_update', 'contact', 'update_config', 'set_config', 'config', 'update_details', 'edit_asset'].includes(cmd.command)) {
+        await axios.post(`${activeUrl}/api/commands/${cmd.id}/done`, { result: 'success', message: 'Contact details updated in agent' }, { headers, timeout: 5000 }).catch(() => {});
+        // Run collection to send back confirmed updated details to server
+        runCollection('remote').catch(e => logger.error(`Post-contact-update sync: ${e.message}`));
+      } else if (cmd.command === 'sync') {
         await runCollection('remote');
         await axios.post(`${activeUrl}/api/commands/${cmd.id}/done`, {}, { headers, timeout: 5000 }).catch(() => {});
-      } else if (cmd.command === 'update') {
-        // FIX: this used to mark the command "done" immediately, then
-        // fire performUpdate() in the background — so the admin panel
-        // always showed "update sent" the instant the agent polled,
-        // regardless of whether the update actually ran. Any failure
-        // after that point (download error, checksum mismatch, no
-        // active version published, etc.) was invisible server-side;
-        // the only way to know was to go check that PC's local log
-        // file by hand. That's why this looked like "remote update
-        // doesn't work" — most of the time it was failing silently
-        // AFTER already being marked complete.
-        //
-        // Now: run the update FIRST, get back a real result, and only
-        // mark the command done with that actual outcome attached —
-        // so the admin panel can show what really happened.
+      } else if (['update', 'install', 'push_app', 'push_update', 'upgrade'].includes(cmd.command)) {
         if (!updater) {
-          logger.error('Remote cmd: update requested but the updater module failed to load at startup — cannot proceed. Check crash.log.');
+          logger.error('Remote cmd: update/install requested but updater module not loaded on agent');
           await axios.post(`${activeUrl}/api/commands/${cmd.id}/done`, { result: 'failed', message: 'updater module not loaded on agent' }, { headers, timeout: 5000 }).catch(() => {});
         } else {
-          const result = await updater.performUpdate(SERVER_URL, API_KEY, AGENT_VER, logger, PHP_URL)
+          logger.info(`Remote push install/update command received (id=${cmd.id}): ${cmd.command}`);
+          const result = await updater.performUpdate(SERVER_URL, API_KEY, AGENT_VER, logger, PHP_URL, cmd)
             .catch(e => ({ status: 'failed', message: e.message }));
           logger.info(`Remote cmd: update result — ${result.status}: ${result.message || ''}`);
           await axios.post(`${activeUrl}/api/commands/${cmd.id}/done`,

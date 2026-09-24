@@ -594,6 +594,20 @@ function applyStatusUpdate(s) {
   sw('d-device-type', s.device_type     || '—');
   sw('d-ext-number',  s.ext_number      || '—');
 
+  // Keep form inputs synchronized with latest status/config (unless user is actively typing in them)
+  const contactInput = document.getElementById('s-contact');
+  if (contactInput && document.activeElement !== contactInput && s.contact_number !== undefined) {
+    contactInput.value = s.contact_number;
+  }
+  const extInput = document.getElementById('s-ext-number');
+  if (extInput && document.activeElement !== extInput && s.ext_number !== undefined) {
+    extInput.value = s.ext_number;
+  }
+  const devTypeInput = document.getElementById('s-device-type');
+  if (devTypeInput && document.activeElement !== devTypeInput && s.device_type !== undefined) {
+    devTypeInput.value = s.device_type;
+  }
+
   // FIX: Required software — only show if available
   updateSoftwareRows(s.has_sap, s.has_crowdstrike, s.has_ms_office);
 
